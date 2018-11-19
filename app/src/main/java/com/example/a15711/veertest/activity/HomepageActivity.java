@@ -52,6 +52,8 @@ public class HomepageActivity extends AppCompatActivity {
     List<Data> datas=new ArrayList<Data>();
     //记录刷新次数，以便显示各页的内容
     int refresh=0;
+    //每次上拉刷新加载的数据条数
+    int loadCount=0;
     //刷新状态，本次刷新未结束时不响应新的刷新
     boolean refreshStatus=false;
     Toolbar toolbar;
@@ -60,7 +62,7 @@ public class HomepageActivity extends AppCompatActivity {
     //下拉刷新进度条
     ProgressBar progressBar;
     DataAdapter dataAdapter;
-    //接收下拉刷新消息并处理
+    //接收上拉刷新消息并处理
     android.os.Handler handler=new android.os.Handler(){
         @Override
         public void handleMessage(Message msg) {
@@ -69,10 +71,13 @@ public class HomepageActivity extends AppCompatActivity {
                 case 2:{
                     boolean res=msg.getData().getBoolean("result");
                     if(res==true){
-                        dataAdapter.notifyDataSetChanged();
-                        recyclerView.scrollToPosition(0);
+                        dataAdapter.notifyItemRangeInserted(datas.size()-1-loadCount,loadCount);
+                        recyclerView.scrollToPosition(datas.size()-1-loadCount);
                         progressBar.setVisibility(View.INVISIBLE);
                         Toast.makeText(HomepageActivity.this,"加载下一页成功",Toast.LENGTH_SHORT).show();
+                    }else if(res==false){
+                        progressBar.setVisibility(View.INVISIBLE);
+                        Toast.makeText(HomepageActivity.this,"没有更多数据了",Toast.LENGTH_SHORT).show();
                     }
                     refreshStatus=false;
                     break;
@@ -101,7 +106,8 @@ public class HomepageActivity extends AppCompatActivity {
         if(jsonStr!=null){
             dataList.addAll(Utility.handleJson(jsonStr));
             setRefreshData() ;
-            dataAdapter.notifyDataSetChanged();
+            dataAdapter.notifyItemRangeInserted(0,loadCount);
+            recyclerView.scrollToPosition(0);
         }else{
             refreshData(1);
         }
@@ -165,14 +171,15 @@ public class HomepageActivity extends AppCompatActivity {
     }
     //根据刷新次数更新显示当前页的数据列表
     public boolean setRefreshData(){
+        loadCount=0;
         if(refresh*6>=dataList.size()){
             return false;
         }
-        datas.clear();
         //  取6条数据即可
         int count=refresh*6+6;
         for(int i=refresh*6;i<dataList.size()&&i<count;i++){
             datas.add(dataList.get(i));
+            loadCount++;
         }
         refresh++;
         return true;
@@ -207,14 +214,18 @@ public class HomepageActivity extends AppCompatActivity {
                 editor.putString("jsonString",responseText);
                 editor.apply();
                 dataList.clear();
+                datas.clear();
                 dataList.addAll(Utility.handleJson(responseText));
                 refresh=0;
                 setRefreshData();
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        dataAdapter.notifyDataSetChanged();
-                        if(signal==2){
+                        if(signal==1){
+                            dataAdapter.notifyItemRangeInserted(0,loadCount);
+                        }
+                        else if(signal==2){
+                            dataAdapter.notifyDataSetChanged();
                             Toast.makeText(HomepageActivity.this,"刷新成功",Toast.LENGTH_SHORT).show();
                             swipeRefreshLayout.setRefreshing(false);
                         }
