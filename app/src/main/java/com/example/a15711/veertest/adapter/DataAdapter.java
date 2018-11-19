@@ -92,6 +92,6 @@ public class DataAdapter extends RecyclerView.Adapter<DataAdapter.ViewHolder>{
 
     @Override
     public int getItemCount() {
-        return dataList.size()>0?dataList.size():1;
+        return dataList.size();
     }
 }

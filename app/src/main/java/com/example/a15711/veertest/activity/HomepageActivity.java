@@ -50,16 +50,17 @@ public class HomepageActivity extends AppCompatActivity {
     List<Data> dataList=new ArrayList<Data>();
     //显示在一页中的数据列表
     List<Data> datas=new ArrayList<Data>();
-    //记录刷新次数
+    //记录刷新次数，以便显示各页的内容
     int refresh=0;
-    //刷新状态
+    //刷新状态，本次刷新未结束时不响应新的刷新
     boolean refreshStatus=false;
     Toolbar toolbar;
     RecyclerView recyclerView;
     SwipeRefreshLayout swipeRefreshLayout;
+    //下拉刷新进度条
     ProgressBar progressBar;
     DataAdapter dataAdapter;
-
+    //接收下拉刷新消息并处理
     android.os.Handler handler=new android.os.Handler(){
         @Override
         public void handleMessage(Message msg) {
@@ -83,6 +84,7 @@ public class HomepageActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_homepage);
+        //初始化各个控件
         pref= PreferenceManager.getDefaultSharedPreferences(this);
         toolbar=findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
@@ -92,23 +94,26 @@ public class HomepageActivity extends AppCompatActivity {
         recyclerView=findViewById(R.id.veer_recycler);
         LinearLayoutManager linearLayoutManager=new LinearLayoutManager(this);
         recyclerView.setLayoutManager(linearLayoutManager);
+        dataAdapter=new DataAdapter(datas);
+        recyclerView.setAdapter(dataAdapter);
+        //判断本地是否有从API中读来的json串的缓存，有的话直接用，没有的话重新从API中读取
         String jsonStr=pref.getString("jsonString",null);
         if(jsonStr!=null){
             dataList.addAll(Utility.handleJson(jsonStr));
+            setRefreshData() ;
+            dataAdapter.notifyDataSetChanged();
         }else{
-            queryFromApi(API);
+            refreshData(1);
         }
-        if(!setRefreshData()){
-            Toast.makeText(this,"没有更多数据了",Toast.LENGTH_SHORT).show();
-        }
-        if(dataList.size()>0){
-            Log.d("HomepageActivity","dataList不为空");
-        }
-        if(datas.size()>0){
-            Log.d("HomepageActivity","datas不为空");
-        }
-        dataAdapter=new DataAdapter(datas);
-        recyclerView.setAdapter(dataAdapter);
+//        if(!setRefreshData()){
+//            Toast.makeText(this,"没有更多数据了",Toast.LENGTH_SHORT).show();
+//        }
+//        if(dataList.size()>0){
+//            Log.d("HomepageActivity","dataList不为空");
+//        }
+//        if(datas.size()>0){
+//            Log.d("HomepageActivity","datas不为空");
+//        }
         //用户点击事件监听接口
         dataAdapter.setOnClickListener(new DataAdapter.OnClickListener() {
             @Override
@@ -124,7 +129,7 @@ public class HomepageActivity extends AppCompatActivity {
         swipeRefreshLayout.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
             @Override
             public void onRefresh() {
-                refreshData();
+                refreshData(2);
             }
         });
         //上拉刷新监听接口
@@ -173,43 +178,24 @@ public class HomepageActivity extends AppCompatActivity {
         return true;
     }
 
-    //从API中查询数据
-    public void queryFromApi(String url) {
-        Log.d("queryFromApi","before");
-        HttpUtil.sendOkHttpRequest(url, new Callback() {
-            @Override
-            public void onFailure(Call call, IOException e) {
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        Toast.makeText(HomepageActivity.this, "加载失败", Toast.LENGTH_SHORT).show();
-                        Log.d("queryFromApi","onFailure");
-                    }
-                });
-            }
-
-            @Override
-            public void onResponse(Call call, Response response) throws IOException {
-                final String responseText = response.body().string();
-                editor=pref.edit();
-                editor.putString("jsonString",responseText);
-                editor.apply();
-                dataList.addAll(Utility.handleJson(responseText));
-                Log.d("queryFromApi","onResponse");
-            }
-        });
-        Log.d("queryFromApi","after");
-    }
-    //刷新，从API中重新获取一次数据并显示
-    public void refreshData(){
+    //刷新数据，从API中获取数据并显示，参数为1表示启动时程序自动获取；为2表示通过用户下拉刷新获取
+    public void refreshData(int i){
+        final int signal=i;
         HttpUtil.sendOkHttpRequest(API, new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        Toast.makeText(HomepageActivity.this,"刷新失败！",Toast.LENGTH_SHORT).show();
-                        swipeRefreshLayout.setRefreshing(false);
+                        //singal==2表示是由下拉刷新触发
+                        if(signal==2) {
+                            Toast.makeText(HomepageActivity.this, "刷新失败！", Toast.LENGTH_SHORT).show();
+                            swipeRefreshLayout.setRefreshing(false);
+                        }
+                        //signal==1表示是由应用第一次启动触发
+                        else if(signal==1){
+                            Toast.makeText(HomepageActivity.this, "加载数据失败", Toast.LENGTH_SHORT).show();
+                        }
                     }
                 });
             }
@@ -227,9 +213,11 @@ public class HomepageActivity extends AppCompatActivity {
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        Toast.makeText(HomepageActivity.this,"刷新成功",Toast.LENGTH_SHORT).show();
                         dataAdapter.notifyDataSetChanged();
-                        swipeRefreshLayout.setRefreshing(false);
+                        if(signal==2){
+                            Toast.makeText(HomepageActivity.this,"刷新成功",Toast.LENGTH_SHORT).show();
+                            swipeRefreshLayout.setRefreshing(false);
+                        }
                     }
                 });
             }
