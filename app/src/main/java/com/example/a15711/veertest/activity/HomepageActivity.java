@@ -2,42 +2,34 @@ package com.example.a15711.veertest.activity;
 
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.net.Uri;
 import android.os.Message;
 import android.preference.PreferenceManager;
 import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.Toolbar;
-import android.util.Log;
 import android.view.View;
 import android.widget.ProgressBar;
-import android.widget.RelativeLayout;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import com.example.a15711.veertest.R;
 import com.example.a15711.veertest.adapter.DataAdapter;
 import com.example.a15711.veertest.data.Data;
 import com.example.a15711.veertest.util.HttpUtil;
-import com.example.a15711.veertest.util.MyApplication;
+import com.example.a15711.veertest.util.RetrofitHttpUtil;
 import com.example.a15711.veertest.util.UpLoad;
 import com.example.a15711.veertest.util.Utility;
-
-import org.litepal.crud.DataSupport;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Handler;
-import java.util.logging.LogRecord;
 
-import okhttp3.Call;
-import okhttp3.Callback;
-import okhttp3.Response;
+import okhttp3.ResponseBody;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
 public class HomepageActivity extends AppCompatActivity {
 
@@ -70,12 +62,12 @@ public class HomepageActivity extends AppCompatActivity {
                 case 1:{ progressBar.setVisibility(View.VISIBLE);refreshStatus=true;break;}
                 case 2:{
                     boolean res=msg.getData().getBoolean("result");
-                    if(res==true){
+                    if(res){
                         dataAdapter.notifyItemRangeInserted(datas.size()-1-loadCount,loadCount);
                         recyclerView.scrollToPosition(datas.size()-1-loadCount);
                         progressBar.setVisibility(View.INVISIBLE);
                         Toast.makeText(HomepageActivity.this,"加载下一页成功",Toast.LENGTH_SHORT).show();
-                    }else if(res==false){
+                    }else if(!res){
                         progressBar.setVisibility(View.INVISIBLE);
                         Toast.makeText(HomepageActivity.this,"没有更多数据了",Toast.LENGTH_SHORT).show();
                     }
@@ -188,28 +180,15 @@ public class HomepageActivity extends AppCompatActivity {
     //刷新数据，从API中获取数据并显示，参数为1表示启动时程序自动获取；为2表示通过用户下拉刷新获取
     public void refreshData(int i){
         final int signal=i;
-        HttpUtil.sendOkHttpRequest(API, new Callback() {
+        RetrofitHttpUtil.requestFormUrl(new Callback<ResponseBody>() {
             @Override
-            public void onFailure(Call call, IOException e) {
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        //singal==2表示是由下拉刷新触发
-                        if(signal==2) {
-                            Toast.makeText(HomepageActivity.this, "刷新失败！", Toast.LENGTH_SHORT).show();
-                            swipeRefreshLayout.setRefreshing(false);
-                        }
-                        //signal==1表示是由应用第一次启动触发
-                        else if(signal==1){
-                            Toast.makeText(HomepageActivity.this, "加载数据失败", Toast.LENGTH_SHORT).show();
-                        }
-                    }
-                });
-            }
-
-            @Override
-            public void onResponse(Call call, Response response) throws IOException {
-                final String responseText = response.body().string();
+            public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
+                String responseText="";
+                try{
+                    responseText=response.body().string();
+                }catch (Exception e){
+                    e.printStackTrace();
+                }
                 editor=pref.edit();
                 editor.putString("jsonString",responseText);
                 editor.apply();
@@ -232,6 +211,82 @@ public class HomepageActivity extends AppCompatActivity {
                     }
                 });
             }
+
+            @Override
+            public void onFailure(Call<ResponseBody> call, Throwable t) {
+
+            }
         });
+
+        RetrofitHttpUtil.requestFormUrl(new retrofit2.Callback<ResponseBody>() {
+            @Override
+            public void onResponse(Call call, Response response) {
+
+            }
+
+            @Override
+            public void onFailure(retrofit2.Call call, Throwable t) {
+
+            runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        //singal==2表示是由下拉刷新触发
+                        if(signal==2) {
+                            Toast.makeText(HomepageActivity.this, "刷新失败！", Toast.LENGTH_SHORT).show();
+                            swipeRefreshLayout.setRefreshing(false);
+                        }
+                        //signal==1表示是由应用第一次启动触发
+                        else if(signal==1){
+                            Toast.makeText(HomepageActivity.this, "加载数据失败", Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                });
+            }
+        });
+//        HttpUtil.sendOkHttpRequest(API, new Callback() {
+//            @Override
+//            public void onFailure(Call call, IOException e) {
+//                runOnUiThread(new Runnable() {
+//                    @Override
+//                    public void run() {
+//                        //singal==2表示是由下拉刷新触发
+//                        if(signal==2) {
+//                            Toast.makeText(HomepageActivity.this, "刷新失败！", Toast.LENGTH_SHORT).show();
+//                            swipeRefreshLayout.setRefreshing(false);
+//                        }
+//                        //signal==1表示是由应用第一次启动触发
+//                        else if(signal==1){
+//                            Toast.makeText(HomepageActivity.this, "加载数据失败", Toast.LENGTH_SHORT).show();
+//                        }
+//                    }
+//                });
+//            }
+//
+//            @Override
+//            public void onResponse(Call call, Response response) throws IOException {
+//                final String responseText = response.body().string();
+//                editor=pref.edit();
+//                editor.putString("jsonString",responseText);
+//                editor.apply();
+//                dataList.clear();
+//                datas.clear();
+//                dataList.addAll(Utility.handleJson(responseText));
+//                refresh=0;
+//                setRefreshData();
+//                runOnUiThread(new Runnable() {
+//                    @Override
+//                    public void run() {
+//                        if(signal==1){
+//                            dataAdapter.notifyItemRangeInserted(0,loadCount);
+//                        }
+//                        else if(signal==2){
+//                            dataAdapter.notifyDataSetChanged();
+//                            Toast.makeText(HomepageActivity.this,"刷新成功",Toast.LENGTH_SHORT).show();
+//                            swipeRefreshLayout.setRefreshing(false);
+//                        }
+//                    }
+//                });
+//            }
+//        });
     }
 }
